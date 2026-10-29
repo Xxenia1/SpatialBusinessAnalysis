@@ -23,6 +23,8 @@ It ends with a ranked action plan, the method and its limits, and an SQL appendi
 
 Open `index.html` in any modern browser. No server is required: chart data is loaded from `data/story.js`, and maps are pre-rendered images.
 
+The StoryMap starts in English. Use **EN / 中文** in the upper right to switch language instantly; the choice is saved in `localStorage` and restored on reload. The English and simplified Chinese text resources live in `i18n/en.js` and `i18n/zh-CN.js`. Page text, chart labels and tooltips, map captions, and image descriptions update in place. The map PNGs are pre-rendered with embedded English labels; their pixels cannot be translated at runtime. Rebuild localized map assets from the original source data if fully localized map interiors are required.
+
 ---
 
 ## Repository Structure
@@ -32,6 +34,8 @@ SpatialBusinessIntelligence/
 ├── index.html                # StoryMap page
 ├── css/style.css             # Layout and styles
 ├── js/main.js                # Scrollytelling, lightbox, Chart.js charts
+├── js/i18n.js                # Runtime language switching and persistence
+├── i18n/{en,zh-CN}.js       # English and simplified Chinese text resources
 ├── lib/chart.min.js          # Chart.js 4 (offline copy)
 ├── analysis/build_story.py   # Rebuilds data/story.js (and, with --maps, draft maps) from PostGIS + ACS
 ├── data/

@@ -2,6 +2,15 @@
 
 // All numbers come from data/story.js (window.STORY), written by analysis/build_story.py.
 const S = window.STORY || {};
+const tr = value => window.storyI18n ? window.storyI18n.t(value) : value;
+const isZh = () => window.storyI18n?.language === 'zh-CN';
+function localizeConfig(obj) {
+  if (Array.isArray(obj)) return obj.map(localizeConfig);
+  if (obj && typeof obj === 'object') {
+    Object.keys(obj).forEach(k => { if (typeof obj[k] === 'string') obj[k] = tr(obj[k]); else if (obj[k] && typeof obj[k] === 'object') obj[k] = localizeConfig(obj[k]); });
+  }
+  return obj;
+}
 
 const TIER = { 'Star': '#434b8b', 'High Value': '#cc586f', 'Efficient': '#368acc', 'Standard': '#9a9a9a' };
 const C = {
@@ -47,6 +56,9 @@ function initScrolly() {
     }, { rootMargin: '-45% 0px -45% 0px' });
     steps.forEach(s => io.observe(s));
     activate(steps[0]);
+    document.addEventListener('story:language', () => {
+      if (current) { caption.textContent = current.dataset.caption || ''; img.alt = current.dataset.alt || ''; }
+    });
     // preload the other maps so switching is instant
     steps.forEach(s => { const i = new Image(); i.src = s.dataset.img; });
   });
@@ -94,6 +106,9 @@ function initLightbox() {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(img); }
     });
   });
+  document.addEventListener('story:language', () => {
+    if (opener && !modal.classList.contains('hidden')) { mImg.alt = opener.alt; mCap.textContent = captionFor(opener); }
+  });
   closeBtn.addEventListener('click', close);
   modal.addEventListener('click', e => { if (e.target === modal) close(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.classList.contains('hidden')) close(); });
@@ -120,7 +135,7 @@ function initNav() {
 // ── Charts: each is built once, when it scrolls near the viewport ─────────
 function initCharts() {
   if (typeof Chart === 'undefined' || !S.ops) return;
-  Chart.defaults.font.family = "'Roboto', sans-serif";
+  Chart.defaults.font.family = isZh() ? "'PingFang SC', 'Microsoft YaHei', sans-serif" : "'Roboto', sans-serif";
   Chart.defaults.font.size = 13;
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) Chart.defaults.animation = false;
 
@@ -135,13 +150,24 @@ function initCharts() {
     'c-language': dark => rphChart(S.ops.language.filter(d => d.clients >= 20), { showClients: true }, dark)
   };
 
+  const built = new Set();
+  const build = el => {
+    const old = Chart.getChart(el);
+    if (old) old.destroy();
+    new Chart(el, localizeConfig(builders[el.id](!!el.closest('.chapter-dark'))));
+    built.add(el);
+  };
   const io = new IntersectionObserver(entries => {
     entries.forEach(e => {
       if (!e.isIntersecting) return;
       io.unobserve(e.target);
-      new Chart(e.target, builders[e.target.id](!!e.target.closest('.chapter-dark')));
+      build(e.target);
     });
   }, { rootMargin: '250px 0px' });
+  document.addEventListener('story:language', () => {
+    Chart.defaults.font.family = isZh() ? "'PingFang SC', 'Microsoft YaHei', sans-serif" : "'Roboto', sans-serif";
+    built.forEach(build);
+  });
   Object.keys(builders).forEach(id => { const el = document.getElementById(id); if (el) io.observe(el); });
 }
 
@@ -164,7 +190,7 @@ const barLabels = {
   afterDatasetsDraw(chart, _args, opts) {
     const { ctx } = chart;
     ctx.save();
-    ctx.font = '500 12px Roboto, sans-serif';
+    ctx.font = isZh() ? '500 12px PingFang SC, sans-serif' : '500 12px Roboto, sans-serif';
     ctx.fillStyle = opts.color || '#333';
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
@@ -190,16 +216,16 @@ function scatterChart(dark) {
       ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(a.left, y); ctx.lineTo(a.right, y); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.font = '700 13px Roboto, sans-serif';
-      const tag = (txt, color, px, py, align) => { ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(txt, px, py); };
+      ctx.font = isZh() ? '700 13px PingFang SC, sans-serif' : '700 13px Roboto, sans-serif';
+      const tag = (txt, color, px, py, align) => { ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(tr(txt), px, py); };
       tag('Star', TIER.Star, a.right - 8, a.top + 18, 'right');
       tag('High Value', TIER['High Value'], x - 8, a.top + 18, 'right');
       tag('Efficient', TIER.Efficient, a.right - 8, a.bottom - 10, 'right');
       tag('Standard', '#6f6f6f', x - 8, a.bottom - 10, 'right');
-      ctx.font = '500 12px Roboto, sans-serif';
-      tag(`top quarter: ${money(thr.rev)}`, C.goldDk, a.left + 8, y - 6, 'left');
+      ctx.font = isZh() ? '500 12px PingFang SC, sans-serif' : '500 12px Roboto, sans-serif';
+      tag(`${isZh() ? '前 25%：' : 'top quarter: '}${money(thr.rev)}`, C.goldDk, a.left + 8, y - 6, 'left');
       ctx.save(); ctx.translate(x + 14, a.bottom - 30); ctx.rotate(-Math.PI / 2);
-      tag(`top quarter: ${money(thr.rph)}/hr`, C.goldDk, 0, 0, 'left');
+      tag(`${isZh() ? '前 25%：' : 'top quarter: '}${money(thr.rph)}${isZh() ? '/小时' : '/hr'}`, C.goldDk, 0, 0, 'left');
       ctx.restore();
       ctx.restore();
     }
@@ -219,7 +245,7 @@ function scatterChart(dark) {
       maintainAspectRatio: false,
       plugins: {
         legend: { position: 'bottom', labels: { color: t.text, usePointStyle: true, boxWidth: 8 } },
-        tooltip: { callbacks: { label: i => ` ${i.dataset.label}: ${money(i.raw.y)} at ${money(i.raw.x)}/hr` } }
+        tooltip: { callbacks: { label: i => isZh() ? ` ${i.dataset.label}：${money(i.raw.y)}，${money(i.raw.x)}/小时` : ` ${i.dataset.label}: ${money(i.raw.y)} at ${money(i.raw.x)}/hr` } }
       },
       scales: {
         x: axis(t, {
@@ -243,7 +269,7 @@ function distanceChart(dark) {
   const d = S.distance;
   return {
     data: {
-      labels: d.map(x => x.band + ' mi'),
+      labels: d.map(x => x.band + (isZh() ? ' 英里' : ' mi')),
       datasets: [
         { type: 'bar', label: 'Clients per 100,000 residents', data: d.map(x => x.per100k), backgroundColor: C.good, borderRadius: 2, yAxisID: 'y', order: 2 },
         { type: 'line', label: 'Share of clients who are lucrative', data: d.map(x => x.luc_rate), borderColor: C.gold, backgroundColor: C.gold, pointRadius: 4, borderWidth: 2.5, yAxisID: 'y2', order: 1 }
@@ -254,7 +280,7 @@ function distanceChart(dark) {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: legendBottom(t),
-        tooltip: { callbacks: { label: i => i.datasetIndex === 0 ? ` ${i.raw} per 100,000 residents (${d[i.dataIndex].clients} clients)` : ` ${i.raw}% lucrative` } }
+        tooltip: { callbacks: { label: i => i.datasetIndex === 0 ? (isZh() ? ` 每 10 万居民 ${i.raw} 位（${d[i.dataIndex].clients} 位客户）` : ` ${i.raw} per 100,000 residents (${d[i.dataIndex].clients} clients)`) : (isZh() ? ` 高价值占比 ${i.raw}%` : ` ${i.raw}% lucrative`) } }
       },
       scales: {
         x: axis(t, { grid: { display: false }, title: axisTitle(t, 'Distance from the nearest office') }),
@@ -282,7 +308,7 @@ function yearShareChart(dark) {
       maintainAspectRatio: false,
       plugins: {
         legend: legendBottom(t),
-        tooltip: { callbacks: { label: i => ` ${i.dataset.label}: ${i.raw}% of ${y[i.dataIndex].clients} new clients` } }
+        tooltip: { callbacks: { label: i => isZh() ? ` ${i.dataset.label}：占 ${y[i.dataIndex].clients} 位新客户的 ${i.raw}%` : ` ${i.dataset.label}: ${i.raw}% of ${y[i.dataIndex].clients} new clients` } }
       },
       scales: {
         x: axis(t, { stacked: true, grid: { display: false } }),
@@ -309,7 +335,7 @@ function cohortChart(dark) {
       maintainAspectRatio: false,
       plugins: {
         legend: legendBottom(t),
-        tooltip: { callbacks: { label: i => ` ${i.dataset.label}: ${money(i.raw)} per client` } }
+        tooltip: { callbacks: { label: i => isZh() ? ` ${i.dataset.label}：每位客户 ${money(i.raw)}` : ` ${i.dataset.label}: ${money(i.raw)} per client` } }
       },
       scales: {
         x: axis(t, { grid: { display: false }, title: axisTitle(t, 'Year of first matter') }),
@@ -325,7 +351,7 @@ function colourKey(t, items) {
     display: true, position: 'bottom', onClick: null,
     labels: {
       color: t.text, boxWidth: 12, boxHeight: 12, padding: 14,
-      generateLabels: () => items.map(([text, color]) => ({ text, fillStyle: color, strokeStyle: color, lineWidth: 0, fontColor: t.text }))
+      generateLabels: () => items.map(([text, color]) => ({ text: tr(text), fillStyle: color, strokeStyle: color, lineWidth: 0, fontColor: t.text }))
     }
   };
 }
@@ -338,7 +364,7 @@ function rphChart(rows, { grey = [], showClients = false }, dark) {
   const hi = firm * 1.08, lo = firm * 0.85;
   const color = d => grey.includes(d.label) ? C.muted : d.rph >= hi ? C.good : d.rph <= lo ? C.bad : C.mid;
   const key = [
-    [`8%+ above firm average ($${Math.round(firm)}/hr)`, C.good],
+    [isZh() ? `高于全所平均水平 8% 以上（$${Math.round(firm)}/小时）` : `8%+ above firm average ($${Math.round(firm)}/hr)`, C.good],
     ['Near average', C.mid],
     ['15%+ below average', C.bad]
   ];
@@ -347,7 +373,7 @@ function rphChart(rows, { grey = [], showClients = false }, dark) {
     type: 'bar',
     plugins: [barLabels],
     data: {
-      labels: data.map(d => d.label),
+      labels: data.map(d => tr(d.label)),
       datasets: [{ data: data.map(d => d.rph), backgroundColor: data.map(color), borderRadius: 2, barPercentage: .78, maxBarThickness: 30 }]
     },
     options: {
@@ -356,8 +382,8 @@ function rphChart(rows, { grey = [], showClients = false }, dark) {
       layout: { padding: { right: showClients ? 110 : 50 } },
       plugins: {
         legend: colourKey(t, key),
-        barLabels: { color: t.text, format: i => '$' + Math.round(data[i].rph) + (showClients ? ` · ${data[i].clients} clients` : '') },
-        tooltip: { callbacks: { label: i => { const d = data[i.dataIndex]; return [` ${money(d.rph)}/hr`, ` ${moneyK(d.rev)} revenue`, ` ${d.clients} clients`]; } } }
+        barLabels: { color: t.text, format: i => '$' + Math.round(data[i].rph) + (showClients ? ` · ${data[i].clients} ${isZh() ? '位客户' : 'clients'}` : '') },
+        tooltip: { callbacks: { label: i => { const d = data[i.dataIndex]; return isZh() ? [` ${money(d.rph)}/小时`, ` 收入 ${moneyK(d.rev)}`, ` ${d.clients} 位客户`] : [` ${money(d.rph)}/hr`, ` ${moneyK(d.rev)} revenue`, ` ${d.clients} clients`]; } } }
       },
       scales: {
         x: axis(t, { beginAtZero: true, ticks: { color: t.sub, callback: v => '$' + v }, title: axisTitle(t, 'Revenue per hour') }),
@@ -375,7 +401,7 @@ function channelChart(dark) {
     type: 'bar',
     plugins: [barLabels],
     data: {
-      labels: rows.map(d => d.label),
+      labels: rows.map(d => tr(d.label)),
       datasets: [{
         data: rows.map(d => d.luc_rate),
         backgroundColor: rows.map(d => small(d) ? C.muted : d.label === 'Spanish Google' ? C.bad : C.good),
@@ -392,8 +418,8 @@ function channelChart(dark) {
           ['Below the other large channels', C.bad],
           ['Under 20 clients: too few to judge', C.muted]
         ]),
-        barLabels: { color: t.text, format: i => `${rows[i].luc_rate}% · ${rows[i].clients} clients` },
-        tooltip: { callbacks: { label: i => ` ${rows[i.dataIndex].luc_rate}% of ${rows[i.dataIndex].clients} mapped clients are lucrative` } }
+        barLabels: { color: t.text, format: i => `${rows[i].luc_rate}% · ${rows[i].clients} ${isZh() ? '位客户' : 'clients'}` },
+        tooltip: { callbacks: { label: i => isZh() ? ` ${rows[i.dataIndex].clients} 位已定位客户中有 ${rows[i.dataIndex].luc_rate}% 属于高价值` : ` ${rows[i.dataIndex].luc_rate}% of ${rows[i.dataIndex].clients} mapped clients are lucrative` } }
       },
       scales: {
         x: axis(t, { min: 0, max: 100, ticks: { color: t.sub, callback: v => v + '%' }, title: axisTitle(t, 'Share of clients who are lucrative') }),
